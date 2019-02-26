@@ -1,0 +1,12 @@
+[package]
+name = "swap"
+description = "An extremely simple tool to swap two files/directories atomically on Linux"
+license = "BSD"
+homepage = "0upti.me"
+repository = "https://gitlab.com/K900/swap"
+version = "0.1.0"
+authors = ["K900 <me@0upti.me>"]
+
+[dependencies]
+structopt = "0.2"
+libc = "0.2"
