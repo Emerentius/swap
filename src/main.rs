@@ -1,18 +1,15 @@
 extern crate libc;
 extern crate structopt;
 
-use std::ffi::CString;
+use std::ffi::{CString, NulError};
 use std::io;
-use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::os::unix::prelude::OsStringExt;
+use std::path::PathBuf;
 
 use structopt::StructOpt;
 
-fn pathbuf_to_cstring(x: &Path) -> io::Result<CString> {
-    let canonicalized = x.canonicalize()?;
-    let canon_str = canonicalized.as_os_str().as_bytes();
-
-    Ok(CString::new(canon_str)?)
+fn pathbuf_to_cstring(path: PathBuf) -> Result<CString, NulError> {
+    CString::new(path.into_os_string().into_vec())
 }
 
 #[derive(StructOpt, Debug)]
@@ -30,17 +27,24 @@ struct Flags {
 fn main() -> io::Result<()> {
     let args = Flags::from_args();
 
-    let src = pathbuf_to_cstring(args.src.as_ref())?;
-    let dst = pathbuf_to_cstring(args.dst.as_ref())?;
+    let src = pathbuf_to_cstring(args.src)?;
+    let dst = pathbuf_to_cstring(args.dst)?;
 
     let result = unsafe {
         libc::syscall(
+            // See `man renameat2`
+            // or https://man7.org/linux/man-pages/man2/renameat.2.html
             libc::SYS_renameat2,
-            0,
-            src.as_ptr(),
-            0,
-            dst.as_ptr(),
-            libc::RENAME_EXCHANGE
+            // From manual:
+            // If oldpath is relative and olddirfd is the special value
+            // AT_FDCWD, then oldpath is interpreted relative to the current
+            // working directory of the calling process.
+            // newdirfd has the same behavior for newpath.
+            libc::AT_FDCWD,        // olddirfd
+            src.as_ptr(),          // oldpath
+            libc::AT_FDCWD,        // newdirfd
+            dst.as_ptr(),          // newpath
+            libc::RENAME_EXCHANGE, // flags
         )
     };
 
